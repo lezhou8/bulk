@@ -1,2 +1,2 @@
-# bulk
-Command-line tool for bulk renaming files and folders
+## About
+Simple command-line tool for bulk renaming files and folders.
