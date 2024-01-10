@@ -80,6 +80,37 @@ var rootCmd = &cobra.Command{
 			fmt.Println("Error: could not open editor")
 			return
 		}
+
+		fileContentBytes, err := os.ReadFile(tmpFile.Name())
+		if err != nil {
+			fmt.Println("Error: could not read temp file")
+			return
+		}
+		fileContent := string(fileContentBytes)
+
+		goodLineCount := 0
+		expectedLineCount := len(fullPaths)
+		fileContentLines := strings.Split(fileContent, "\n")
+		for _, line := range fileContentLines {
+			if strings.HasPrefix(line, "#") || line == "" {
+				continue
+			}
+			goodLineCount++
+		}
+		if goodLineCount != expectedLineCount {
+			fmt.Println("Error: number of lines changed")
+			return
+		}
+
+		newNames := make([]string, expectedLineCount)
+		i := 0
+		for _, line := range fileContentLines {
+			if strings.HasPrefix(line, "#") || line == "" {
+				continue
+			}
+			newNames[i] = line
+			i++
+		}
 	},
 }
 
@@ -125,6 +156,10 @@ func filesAllSameDir(fs []string) bool {
 
 func isFullPath(path string) bool {
 	return strings.HasPrefix(path, "/") || strings.HasPrefix(path, "~")
+}
+
+func checkLineCount(fileContent string, expectedLineCount int) bool {
+	return true
 }
 
 func Execute() {
