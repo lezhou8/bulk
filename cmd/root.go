@@ -88,16 +88,9 @@ var rootCmd = &cobra.Command{
 		}
 		fileContent := string(fileContentBytes)
 
-		goodLineCount := 0
 		expectedLineCount := len(fullPaths)
 		fileContentLines := strings.Split(fileContent, "\n")
-		for _, line := range fileContentLines {
-			if strings.HasPrefix(line, "#") || line == "" {
-				continue
-			}
-			goodLineCount++
-		}
-		if goodLineCount != expectedLineCount {
+		if !lineCountGood(fileContentLines, expectedLineCount) {
 			fmt.Println("Error: number of lines changed")
 			return
 		}
@@ -105,11 +98,16 @@ var rootCmd = &cobra.Command{
 		newNames := make([]string, expectedLineCount)
 		i := 0
 		for _, line := range fileContentLines {
-			if strings.HasPrefix(line, "#") || line == "" {
+			if !lineToBeCounted(line) {
 				continue
 			}
 			newNames[i] = line
 			i++
+		}
+
+		showCmdsLines := make([]string, expectedLineCount)
+		for i := 0; i < expectedLineCount; i++ {
+			showCmdsLines[i] = "mv " + fullPaths[i] + " " + newNames[i]
 		}
 	},
 }
@@ -158,8 +156,22 @@ func isFullPath(path string) bool {
 	return strings.HasPrefix(path, "/") || strings.HasPrefix(path, "~")
 }
 
-func checkLineCount(fileContent string, expectedLineCount int) bool {
+func lineCountGood(fileContentLines []string, expectedLineCount int) bool {
+	goodLineCount := 0
+	for _, line := range fileContentLines {
+		if !lineToBeCounted(line) {
+			continue
+		}
+		goodLineCount++
+	}
+	if goodLineCount != expectedLineCount {
+		return false
+	}
 	return true
+}
+
+func lineToBeCounted(line string) bool {
+	return !strings.HasPrefix(line, "#") && line != ""
 }
 
 func Execute() {
