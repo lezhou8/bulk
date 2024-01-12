@@ -45,7 +45,7 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		if !requireFullPath && filesAllSameDir(fullPaths) {
+		if !requireFullPath && filesAllSameDir(fullPaths, currDir) {
 			for i, path := range fullPaths {
 				fullPaths[i] = filepath.Base(path)
 			}
@@ -59,7 +59,7 @@ var rootCmd = &cobra.Command{
 		defer tmpFile.Close()
 		defer os.Remove(tmpFile.Name())
 
-		data := []byte(instructionComment + strings.Join(fullPaths, "\n"))
+		data := []byte(strings.Join(fullPaths, "\n"))
 		if _, err := tmpFile.Write(data); err != nil {
 			fmt.Println("Error: could not write to temp file")
 			return
@@ -95,19 +95,51 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		newNames := make([]string, expectedLineCount)
-		i := 0
-		for _, line := range fileContentLines {
-			if !lineToBeCounted(line) {
-				continue
-			}
-			newNames[i] = line
-			i++
+		newNames := createNewNames(fileContentLines, expectedLineCount)
+		showCmdsLines := createShowCmdsLines(fullPaths, newNames)
+
+		tmpFileCmds, err := os.CreateTemp("", "bulkCmds")
+		if err != nil {
+			fmt.Println("Error: could not create second temp file")
+			return
+		}
+		defer tmpFileCmds.Close()
+		defer os.Remove(tmpFileCmds.Name())
+
+		cmdsData := []byte(strings.Join(showCmdsLines, "\n"))
+		if _, err := tmpFileCmds.Write(cmdsData); err != nil {
+			fmt.Println("Error: could not write to second temp file")
+			return
 		}
 
-		showCmdsLines := make([]string, expectedLineCount)
-		for i := 0; i < expectedLineCount; i++ {
-			showCmdsLines[i] = "mv " + fullPaths[i] + " " + newNames[i]
+		openEditor = exec.Command(editor, tmpFileCmds.Name())
+		openEditor.Stdin = os.Stdin
+		openEditor.Stdout = os.Stdout
+		openEditor.Stderr = os.Stderr
+		err = openEditor.Run()
+		if err != nil {
+			fmt.Println("Error: could not open editor")
+			return
+		}
+		err = os.Chmod(tmpFileCmds.Name(), 0755)
+		if err != nil {
+			fmt.Println("Error: granting executable permissions to file")
+			return
+		}
+
+		isDryRun, err := cmd.Flags().GetBool("dry-run")
+		if isDryRun {
+			return
+		}
+
+		runCmds := exec.Command(tmpFileCmds.Name())
+		runCmds.Stdin = os.Stdin
+		runCmds.Stdout = os.Stdout
+		runCmds.Stderr = os.Stderr
+		err = runCmds.Run()
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
 	},
 }
@@ -144,12 +176,12 @@ func allPathsToFull(fs []string, currDir string) []string {
 	return fullFs
 }
 
-func filesAllSameDir(fs []string) bool {
+func filesAllSameDir(fs []string, currDir string) bool {
 	dir := mapset.NewSet[string]()
 	for _, f := range fs {
 		dir.Add(filepath.Dir(f))
 	}
-	return dir.Cardinality() == 1
+	return dir.Cardinality() == 1 && dir.Contains(currDir)
 }
 
 func isFullPath(path string) bool {
@@ -172,6 +204,36 @@ func lineCountGood(fileContentLines []string, expectedLineCount int) bool {
 
 func lineToBeCounted(line string) bool {
 	return !strings.HasPrefix(line, "#") && line != ""
+}
+
+func createNewNames(fileContentLines []string, expectedLineCount int) []string {
+	newNames := make([]string, expectedLineCount)
+	i := 0
+	for _, line := range fileContentLines {
+		if !lineToBeCounted(line) {
+			continue
+		}
+		line = removeComment(line)
+		newNames[i] = line
+		i++
+	}
+	return newNames
+}
+
+func removeComment(line string) string {
+	if strings.Contains(line, "#") {
+		line = strings.Split(line, "#")[0]
+	}
+	return line
+}
+
+func createShowCmdsLines(fullPaths, newNames []string) []string {
+	expectedLineCount := len(fullPaths)
+	showCmdsLines := make([]string, expectedLineCount)
+	for i := 0; i < expectedLineCount; i++ {
+		showCmdsLines[i] = "mv -vi -- " + fullPaths[i] + " " + newNames[i]
+	}
+	return showCmdsLines
 }
 
 func Execute() {
