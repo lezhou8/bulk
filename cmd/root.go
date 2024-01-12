@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,9 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	instructionComment string = "# Change the names of these files, then save and quit\n\n"
-)
+const instructionComment string = "#!/bin/sh\n# This file will execute when the file closes\n"
 
 var rootCmd = &cobra.Command{
 	Use:   "bulk",
@@ -29,20 +27,17 @@ var rootCmd = &cobra.Command{
 
 		currDir, err := os.Getwd()
 		if err != nil {
-			fmt.Println("Error: getting current directory")
-			return
+			log.Fatal(err)
 		}
 
 		if !filesValid(args, currDir) {
-			fmt.Println("Error: file found that does not exist or is invalid")
-			return
+			log.Fatal(err)
 		}
 
 		fullPaths := allPathsToFull(args, currDir)
 		requireFullPath, err := cmd.Flags().GetBool("full-path")
 		if err != nil {
-			fmt.Println("Error: could not get --full-path flag")
-			return
+			log.Fatal(err)
 		}
 
 		if !requireFullPath && filesAllSameDir(fullPaths, currDir) {
@@ -53,21 +48,18 @@ var rootCmd = &cobra.Command{
 
 		tmpFile, err := os.CreateTemp("", "bulktemp")
 		if err != nil {
-			fmt.Println("Error: could not create temp file")
-			return
+			log.Fatal(err)
 		}
 		defer tmpFile.Close()
 		defer os.Remove(tmpFile.Name())
 
-		data := []byte(strings.Join(fullPaths, "\n"))
-		if _, err := tmpFile.Write(data); err != nil {
-			fmt.Println("Error: could not write to temp file")
-			return
+		if _, err := tmpFile.WriteString(strings.Join(fullPaths, "\n")); err != nil {
+			log.Fatal(err)
 		}
 
 
 		editor := os.Getenv("EDITOR")
-		if editor == "" { // temp
+		if editor == "" {
 			editor = "xdg-open"
 		}
 
@@ -77,22 +69,19 @@ var rootCmd = &cobra.Command{
 		openEditor.Stderr = os.Stderr
 		err = openEditor.Run()
 		if err != nil {
-			fmt.Println("Error: could not open editor")
-			return
+			log.Fatal(err)
 		}
 
 		fileContentBytes, err := os.ReadFile(tmpFile.Name())
 		if err != nil {
-			fmt.Println("Error: could not read temp file")
-			return
+			log.Fatal(err)
 		}
 		fileContent := string(fileContentBytes)
 
 		expectedLineCount := len(fullPaths)
 		fileContentLines := strings.Split(fileContent, "\n")
 		if !lineCountGood(fileContentLines, expectedLineCount) {
-			fmt.Println("Error: number of lines changed")
-			return
+			log.Fatal(err)
 		}
 
 		newNames := createNewNames(fileContentLines, expectedLineCount)
@@ -100,17 +89,14 @@ var rootCmd = &cobra.Command{
 
 		tmpFileCmds, err := os.CreateTemp("", "bulkCmds")
 		if err != nil {
-			fmt.Println("Error: could not create second temp file")
-			return
+			log.Fatal(err)
 		}
-		defer tmpFileCmds.Close()
 		defer os.Remove(tmpFileCmds.Name())
 
-		cmdsData := []byte(strings.Join(showCmdsLines, "\n"))
-		if _, err := tmpFileCmds.Write(cmdsData); err != nil {
-			fmt.Println("Error: could not write to second temp file")
-			return
+		if _, err := tmpFileCmds.WriteString(instructionComment + strings.Join(showCmdsLines, "\n")); err != nil {
+			log.Fatal(err)
 		}
+		tmpFileCmds.Close()
 
 		openEditor = exec.Command(editor, tmpFileCmds.Name())
 		openEditor.Stdin = os.Stdin
@@ -118,13 +104,11 @@ var rootCmd = &cobra.Command{
 		openEditor.Stderr = os.Stderr
 		err = openEditor.Run()
 		if err != nil {
-			fmt.Println("Error: could not open editor")
-			return
+			log.Fatal(err)
 		}
 		err = os.Chmod(tmpFileCmds.Name(), 0755)
 		if err != nil {
-			fmt.Println("Error: granting executable permissions to file")
-			return
+			log.Fatal(err)
 		}
 
 		isDryRun, err := cmd.Flags().GetBool("dry-run")
@@ -138,8 +122,7 @@ var rootCmd = &cobra.Command{
 		runCmds.Stderr = os.Stderr
 		err = runCmds.Run()
 		if err != nil {
-			fmt.Println(err)
-			return
+			log.Fatal(err)
 		}
 	},
 }
