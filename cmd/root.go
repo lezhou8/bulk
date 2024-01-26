@@ -5,14 +5,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/spf13/cobra"
 )
 
-const instructionComment string = "#!/bin/sh\n# This file will execute when the file closes\n"
+const instructionComment = "#!/bin/sh\n# This file will execute when the file closes\n"
 
 var rootCmd = &cobra.Command{
 	Use:   "bulk",
@@ -23,7 +22,6 @@ var rootCmd = &cobra.Command{
 			cmd.Help()
 			return
 		}
-		args = splitArgsIfTogether(args)
 
 		currDir, err := os.Getwd()
 		if err != nil {
@@ -31,7 +29,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		if !filesValid(args, currDir) {
-			log.Fatal(err)
+			log.Fatal("Error: invalid files")
 		}
 
 		fullPaths := allPathsToFull(args, currDir)
@@ -56,7 +54,6 @@ var rootCmd = &cobra.Command{
 		if _, err := tmpFile.WriteString(strings.Join(fullPaths, "\n")); err != nil {
 			log.Fatal(err)
 		}
-
 
 		editor := os.Getenv("EDITOR")
 		if editor == "" {
@@ -125,15 +122,6 @@ var rootCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 	},
-}
-
-func splitArgsIfTogether(args []string) []string {
-	re := regexp.MustCompile(`(?:[^'"\s]+|'[^']*'|"[^"]*")+`)
-	splitArgs := make([]string, 0)
-	for _, arg := range args {
-		splitArgs = append(splitArgs, re.FindAllString(arg, -1)...)
-	}
-	return splitArgs
 }
 
 func filesValid(fs []string, currDir string) bool {
