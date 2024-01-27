@@ -202,7 +202,7 @@ func createShowCmdsLines(fullPaths, newNames []string) []string {
 	expectedLineCount := len(fullPaths)
 	showCmdsLines := make([]string, expectedLineCount)
 	for i := 0; i < expectedLineCount; i++ {
-		showCmdsLines[i] = "mv -vi -- " + fullPaths[i] + " " + newNames[i]
+		showCmdsLines[i] = "mv -vi -- \"" + fullPaths[i] + "\" \"" + newNames[i] + "\""
 	}
 	return showCmdsLines
 }
